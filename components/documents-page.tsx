@@ -107,24 +107,68 @@ export function DocumentsPage() {
   const removeFile = (id: number) =>
     setFiles((f) => f.filter((x) => x.id !== id))
 
-  const addFiles = useCallback(async (fileList: FileList) => {
+  const addFiles = useCallback((fileList: FileList) => {
     const now = new Date()
     const dateLabel = now.toLocaleDateString("en-US", { month: "short", day: "numeric" })
-    const newItems: FileItem[] = Array.from(fileList)
-      .filter((f) => f.name.endsWith(".pdf"))
+
+    const entries: { item: FileItem; file: File }[] = Array.from(fileList)
+      .filter((f) => f.name.toLowerCase().endsWith(".pdf"))
       .map((f) => ({
-        id: Date.now() + Math.random(),
-        name: f.name,
-        size: f.size,
-        status: "queued" as const,
-        pct: 0,
-        type: "pdf" as const,
-        added: dateLabel,
+        item: {
+          id: Date.now() + Math.random(),
+          name: f.name,
+          size: f.size,
+          status: "queued" as const,
+          pct: 0,
+          type: "pdf" as const,
+          added: dateLabel,
+        },
+        file: f,
       }))
-    if (newItems.length > 0) {
-      setFiles((prev) => [...prev, ...newItems])
-      await fetch("http://localhost:8000/signed-url/")
-    }
+
+    if (entries.length === 0) return
+
+    setFiles((prev) => [...prev, ...entries.map((e) => e.item)])
+
+    entries.forEach(({ item, file }) => {
+      const updateFile = (patch: Partial<FileItem>) =>
+        setFiles((prev) => prev.map((f) => (f.id === item.id ? { ...f, ...patch } : f)))
+
+      fetch("http://localhost:8000/signed-url/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ file_name: file.name }),
+      })
+        .then((res) => res.json() as Promise<{ signed_url: string; blob_name: string }>)
+        .then(({ signed_url }) => {
+          updateFile({ status: "uploading" })
+
+          return new Promise<void>((resolve, reject) => {
+            const xhr = new XMLHttpRequest()
+            xhr.open("PUT", signed_url)
+            xhr.setRequestHeader("Content-Type", "application/octet-stream")
+
+            xhr.upload.onprogress = (e) => {
+              if (e.lengthComputable) {
+                updateFile({ pct: Math.round((e.loaded / e.total) * 100) })
+              }
+            }
+
+            xhr.onload = () => {
+              if (xhr.status >= 200 && xhr.status < 300) {
+                updateFile({ status: "indexing", pct: 100 })
+                resolve()
+              } else {
+                reject(new Error(`Upload failed: ${xhr.status}`))
+              }
+            }
+
+            xhr.onerror = () => reject(new Error("Network error"))
+            xhr.send(file)
+          })
+        })
+        .catch(() => updateFile({ status: "error" }))
+    })
   }, [])
 
   const doneCount = files.filter((f) => f.status === "done").length
@@ -205,7 +249,7 @@ export function DocumentsPage() {
           <input
             ref={fileInputRef}
             type="file"
-            accept=".pdf"
+            accept=".pdf,.PDF"
             multiple
             className="hidden"
             onChange={(e) => { if (e.target.files) addFiles(e.target.files); e.target.value = "" }}
@@ -299,7 +343,7 @@ export function DocumentsPage() {
               type="file"
               /* @ts-expect-error non-standard but widely supported */
               webkitdirectory=""
-              accept=".pdf"
+              accept=".pdf,.PDF"
               className="hidden"
               onChange={(e) => { if (e.target.files) addFiles(e.target.files); e.target.value = "" }}
             />
