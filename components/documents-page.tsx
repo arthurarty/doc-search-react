@@ -107,7 +107,7 @@ export function DocumentsPage() {
   const removeFile = (id: number) =>
     setFiles((f) => f.filter((x) => x.id !== id))
 
-  const addFiles = useCallback((fileList: FileList) => {
+  const addFiles = useCallback(async (fileList: FileList) => {
     const now = new Date()
     const dateLabel = now.toLocaleDateString("en-US", { month: "short", day: "numeric" })
     const newItems: FileItem[] = Array.from(fileList)
@@ -121,7 +121,10 @@ export function DocumentsPage() {
         type: "pdf" as const,
         added: dateLabel,
       }))
-    if (newItems.length > 0) setFiles((prev) => [...prev, ...newItems])
+    if (newItems.length > 0) {
+      setFiles((prev) => [...prev, ...newItems])
+      await fetch("http://localhost:8000/signed-url/")
+    }
   }, [])
 
   const doneCount = files.filter((f) => f.status === "done").length
