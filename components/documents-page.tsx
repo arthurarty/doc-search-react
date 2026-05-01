@@ -26,16 +26,14 @@ interface FileItem {
   size: number
   status: FileStatus
   pct: number
-  type: "pdf" | "docx"
+  type: "pdf"
   added: string
 }
 
 const MOCK_FILES: FileItem[] = [
   { id: 1, name: "Q4-2024-Annual-Report.pdf", size: 4200000, status: "done", pct: 100, type: "pdf", added: "Apr 30" },
   { id: 2, name: "Product-Roadmap-2025.pdf", size: 1800000, status: "indexing", pct: 72, type: "pdf", added: "May 1" },
-  { id: 3, name: "Engineering-RFC-001.docx", size: 340000, status: "uploading", pct: 44, type: "docx", added: "May 1" },
-  { id: 4, name: "Customer-Research-Notes.docx", size: 620000, status: "queued", pct: 0, type: "docx", added: "May 1" },
-  { id: 5, name: "Competitive-Analysis-H1.pdf", size: 5100000, status: "queued", pct: 0, type: "pdf", added: "May 1" },
+  { id: 3, name: "Competitive-Analysis-H1.pdf", size: 5100000, status: "queued", pct: 0, type: "pdf", added: "May 1" },
 ]
 
 function fmtSize(bytes: number): string {
@@ -108,6 +106,23 @@ export function DocumentsPage() {
 
   const removeFile = (id: number) =>
     setFiles((f) => f.filter((x) => x.id !== id))
+
+  const addFiles = useCallback((fileList: FileList) => {
+    const now = new Date()
+    const dateLabel = now.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+    const newItems: FileItem[] = Array.from(fileList)
+      .filter((f) => f.name.endsWith(".pdf"))
+      .map((f) => ({
+        id: Date.now() + Math.random(),
+        name: f.name,
+        size: f.size,
+        status: "queued" as const,
+        pct: 0,
+        type: "pdf" as const,
+        added: dateLabel,
+      }))
+    if (newItems.length > 0) setFiles((prev) => [...prev, ...newItems])
+  }, [])
 
   const doneCount = files.filter((f) => f.status === "done").length
   const processingCount = files.filter(
@@ -184,7 +199,14 @@ export function DocumentsPage() {
             <Upload className="size-3.5" />
             Upload
           </Button>
-          <input ref={fileInputRef} type="file" accept=".pdf,.docx" multiple className="hidden" />
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf"
+            multiple
+            className="hidden"
+            onChange={(e) => { if (e.target.files) addFiles(e.target.files); e.target.value = "" }}
+          />
         </div>
       </header>
 
@@ -197,7 +219,7 @@ export function DocumentsPage() {
               Documents
             </h1>
             <p className="text-sm text-muted-foreground mt-1">
-              Upload PDF and DOCX files to index for search.
+              Upload PDF files to index for search.
             </p>
           </div>
 
@@ -230,6 +252,7 @@ export function DocumentsPage() {
           onDrop={(e) => {
             e.preventDefault()
             setDragging(false)
+            addFiles(e.dataTransfer.files)
           }}
           className={cn(
             "border border-dashed rounded-lg p-[18px] px-6 flex items-center gap-4 cursor-pointer transition-colors",
@@ -243,7 +266,7 @@ export function DocumentsPage() {
           </div>
           <div className="flex-1">
             <div className="text-sm font-medium text-foreground">
-              Drop PDF or DOCX files here
+              Drop PDF files here
             </div>
             <div className="text-xs text-muted-foreground mt-px">
               Up to 50 MB per file
@@ -273,7 +296,9 @@ export function DocumentsPage() {
               type="file"
               /* @ts-expect-error non-standard but widely supported */
               webkitdirectory=""
+              accept=".pdf"
               className="hidden"
+              onChange={(e) => { if (e.target.files) addFiles(e.target.files); e.target.value = "" }}
             />
           </div>
         </div>
@@ -342,12 +367,7 @@ export function DocumentsPage() {
               >
                 {/* Name */}
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <FileText
-                    className={cn(
-                      "size-4 shrink-0",
-                      f.type === "pdf" ? "text-brand" : "text-indigo-500"
-                    )}
-                  />
+                  <FileText className="size-4 shrink-0 text-brand" />
                   <div className="min-w-0">
                     <div className="text-sm font-medium text-foreground truncate">
                       {f.name}
