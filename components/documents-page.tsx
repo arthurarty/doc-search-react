@@ -137,7 +137,7 @@ export function DocumentsPage() {
       fetch("http://localhost:8000/signed-url/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ file_name: file.name }),
+        body: JSON.stringify({ file_name: file.name, content_type: file.type }),
       })
         .then((res) => res.json() as Promise<{ signed_url: string; blob_name: string }>)
         .then(({ signed_url }) => {
@@ -146,7 +146,7 @@ export function DocumentsPage() {
           return new Promise<void>((resolve, reject) => {
             const xhr = new XMLHttpRequest()
             xhr.open("PUT", signed_url)
-            xhr.setRequestHeader("Content-Type", "application/octet-stream")
+            xhr.setRequestHeader("Content-Type", file.type)
 
             xhr.upload.onprogress = (e) => {
               if (e.lengthComputable) {
