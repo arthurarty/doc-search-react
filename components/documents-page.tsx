@@ -136,7 +136,7 @@ export function DocumentsPage() {
       const updateFile = (patch: Partial<FileItem>) =>
         setFiles((prev) => prev.map((f) => (f.id === item.id ? { ...f, ...patch } : f)))
 
-      fetch("http://localhost:8000/signed-url/", {
+      fetch("http://localhost:8000/docs/signed-url/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ file_name: file.name, content_type: file.type, file_size: file.size }),
