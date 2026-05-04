@@ -161,7 +161,7 @@ export function DocumentsPage() {
                 fetch(`${backendDomain}/docs/${unique_identifier}`, {
                   method: "PUT",
                   headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ status: "queued_for_upload" }),
+                  body: JSON.stringify({ status: "uploaded" }),
                 })
                   .then((res) => {
                     if (res.status !== 200 && res.status !== 204) {
