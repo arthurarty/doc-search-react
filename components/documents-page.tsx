@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
 
-type FileStatus = "uploaded" | "indexing" | "uploading" | "queued_for_upload" | "upload_failed" | "indexing_failed"
+type FileStatus = "uploaded" | "indexing" | "uploading" | "queued_for_upload" | "upload_failed" | "indexing_failed" | "indexed"
 
 interface FileItem {
   id: number
@@ -51,7 +51,7 @@ function PulseDot() {
 }
 
 function StatusBadge({ status }: { status: FileStatus }) {
-  if (status === "INDEXED")
+  if (status === "indexed")
     return (
       <Badge className="bg-green-100 text-green-700 border-transparent hover:bg-green-100 dark:bg-green-900/30 dark:text-green-400">
         Indexed
@@ -97,6 +97,7 @@ export function DocumentsPage() {
   const [search, setSearch] = useState("")
   const fileInputRef = useRef<HTMLInputElement>(null)
   const folderInputRef = useRef<HTMLInputElement>(null)
+  const backendDomain = process.env.NEXT_PUBLIC_BACKEND_DOMAIN
 
   const toggleDark = useCallback(() => {
     setDark((d) => {
@@ -135,8 +136,7 @@ export function DocumentsPage() {
     entries.forEach(({ item, file }) => {
       const updateFile = (patch: Partial<FileItem>) =>
         setFiles((prev) => prev.map((f) => (f.id === item.id ? { ...f, ...patch } : f)))
-
-      fetch("http://localhost:8000/docs/signed-url/", {
+      fetch(`${backendDomain}/docs/signed-url/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ file_name: file.name, content_type: file.type, file_size: file.size }),
