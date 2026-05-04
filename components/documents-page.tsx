@@ -141,8 +141,8 @@ export function DocumentsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ file_name: file.name, content_type: file.type, file_size: file.size }),
       })
-        .then((res) => res.json() as Promise<{ signed_url: string; blob_name: string }>)
-        .then(({ signed_url }) => {
+        .then((res) => res.json() as Promise<{ signed_url: string; blob_name: string; unique_identifier: string }>)
+        .then(({ signed_url, unique_identifier }) => {
           updateFile({ status: "uploading" })
 
           return new Promise<void>((resolve, reject) => {
@@ -158,8 +158,19 @@ export function DocumentsPage() {
 
             xhr.onload = () => {
               if (xhr.status >= 200 && xhr.status < 300) {
-                updateFile({ status: "indexing", pct: 100 })
-                resolve()
+                fetch(`${backendDomain}/docs/${unique_identifier}`, {
+                  method: "PUT",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ status: "queued_for_upload" }),
+                })
+                  .then((res) => {
+                    if (res.status !== 200 && res.status !== 204) {
+                      throw new Error(`Backend notify failed: ${res.status}`)
+                    }
+                    updateFile({ status: "indexing", pct: 100 })
+                    resolve()
+                  })
+                  .catch(reject)
               } else {
                 reject(new Error(`Upload failed: ${xhr.status}`))
               }
