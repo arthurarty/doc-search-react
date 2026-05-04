@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
 
-type FileStatus = "done" | "indexing" | "uploading" | "queued" | "error"
+type FileStatus = "uploaded" | "indexing" | "uploading" | "queued_for_upload" | "upload_failed" | "indexing_failed" | "indexed"
 
 interface FileItem {
   id: number
@@ -31,9 +31,9 @@ interface FileItem {
 }
 
 const MOCK_FILES: FileItem[] = [
-  { id: 1, name: "Q4-2024-Annual-Report.pdf", size: 4200000, status: "done", pct: 100, type: "pdf", added: "Apr 30" },
+  { id: 1, name: "Q4-2024-Annual-Report.pdf", size: 4200000, status: "uploaded", pct: 100, type: "pdf", added: "Apr 30" },
   { id: 2, name: "Product-Roadmap-2025.pdf", size: 1800000, status: "indexing", pct: 72, type: "pdf", added: "May 1" },
-  { id: 3, name: "Competitive-Analysis-H1.pdf", size: 5100000, status: "queued", pct: 0, type: "pdf", added: "May 1" },
+  { id: 3, name: "Competitive-Analysis-H1.pdf", size: 5100000, status: "queued_for_upload", pct: 0, type: "pdf", added: "May 1" },
 ]
 
 function fmtSize(bytes: number): string {
@@ -51,7 +51,7 @@ function PulseDot() {
 }
 
 function StatusBadge({ status }: { status: FileStatus }) {
-  if (status === "done")
+  if (status === "indexed")
     return (
       <Badge className="bg-green-100 text-green-700 border-transparent hover:bg-green-100 dark:bg-green-900/30 dark:text-green-400">
         Indexed
@@ -71,8 +71,10 @@ function StatusBadge({ status }: { status: FileStatus }) {
         Uploading
       </Badge>
     )
-  if (status === "error")
+  if (status === "upload_failed")
     return <Badge variant="destructive">Failed</Badge>
+  if (status === "indexing_failed")
+    return <Badge variant="destructive">Indexing Failed</Badge>
   return <Badge variant="outline">Queued</Badge>
 }
 
@@ -95,6 +97,7 @@ export function DocumentsPage() {
   const [search, setSearch] = useState("")
   const fileInputRef = useRef<HTMLInputElement>(null)
   const folderInputRef = useRef<HTMLInputElement>(null)
+  const backendDomain = process.env.NEXT_PUBLIC_BACKEND_DOMAIN
 
   const toggleDark = useCallback(() => {
     setDark((d) => {
@@ -118,7 +121,7 @@ export function DocumentsPage() {
           id: Date.now() + Math.random(),
           name: f.name,
           size: f.size,
-          status: "queued" as const,
+          status: "queued_for_upload" as const,
           pct: 0,
           type: "pdf" as const,
           added: dateLabel,
@@ -133,14 +136,13 @@ export function DocumentsPage() {
     entries.forEach(({ item, file }) => {
       const updateFile = (patch: Partial<FileItem>) =>
         setFiles((prev) => prev.map((f) => (f.id === item.id ? { ...f, ...patch } : f)))
-
-      fetch("http://localhost:8000/signed-url/", {
+      fetch(`${backendDomain}/docs/signed-url/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ file_name: file.name, content_type: file.type }),
+        body: JSON.stringify({ file_name: file.name, content_type: file.type, file_size: file.size }),
       })
-        .then((res) => res.json() as Promise<{ signed_url: string; blob_name: string }>)
-        .then(({ signed_url }) => {
+        .then((res) => res.json() as Promise<{ signed_url: string; blob_name: string; unique_identifier: string }>)
+        .then(({ signed_url, unique_identifier }) => {
           updateFile({ status: "uploading" })
 
           return new Promise<void>((resolve, reject) => {
@@ -156,8 +158,19 @@ export function DocumentsPage() {
 
             xhr.onload = () => {
               if (xhr.status >= 200 && xhr.status < 300) {
-                updateFile({ status: "indexing", pct: 100 })
-                resolve()
+                fetch(`${backendDomain}/docs/${unique_identifier}`, {
+                  method: "PUT",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ status: "uploaded" }),
+                })
+                  .then((res) => {
+                    if (res.status !== 200 && res.status !== 204) {
+                      throw new Error(`Backend notify failed: ${res.status}`)
+                    }
+                    updateFile({ status: "indexing", pct: 100 })
+                    resolve()
+                  })
+                  .catch(reject)
               } else {
                 reject(new Error(`Upload failed: ${xhr.status}`))
               }
@@ -167,11 +180,11 @@ export function DocumentsPage() {
             xhr.send(file)
           })
         })
-        .catch(() => updateFile({ status: "error" }))
+        .catch(() => updateFile({ status: "upload_failed" }))
     })
   }, [])
 
-  const doneCount = files.filter((f) => f.status === "done").length
+  const doneCount = files.filter((f) => f.status === "uploaded").length
   const processingCount = files.filter(
     (f) => f.status === "uploading" || f.status === "indexing"
   ).length
