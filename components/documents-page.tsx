@@ -329,7 +329,7 @@ export function DocumentsPage() {
               Drop PDF files here
             </div>
             <div className="text-xs text-muted-foreground mt-px">
-              Up to 50 MB per file
+              Smaller files will process faster.
             </div>
           </div>
           <div className="flex gap-2">
@@ -342,7 +342,7 @@ export function DocumentsPage() {
               <FolderOpen className="size-3.5" />
               Browse files
             </Button>
-            <Button
+            {/* <Button
               variant="outline"
               size="sm"
               className="gap-1.5"
@@ -350,7 +350,7 @@ export function DocumentsPage() {
             >
               <FolderOpen className="size-3.5" />
               Browse folder
-            </Button>
+            </Button> */}
             <input
               ref={folderInputRef}
               type="file"
